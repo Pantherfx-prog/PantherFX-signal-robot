@@ -1,0 +1,54 @@
+name: Build and Deploy PantherFX Dashboard
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+
+      # FRONTEND BUILD
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm install
+
+      - name: Build frontend
+        working-directory: ./frontend
+        run: npm run build
+
+      # BACKEND BUILD
+      - name: Install backend dependencies
+        working-directory: ./backend
+        run: npm install
+
+      # DEPLOY FRONTEND TO NETLIFY
+      - name: Deploy frontend to Netlify
+        uses: nwtgck/actions-netlify@v3
+        with:
+          publish-dir: ./frontend/build
+          production-deploy: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          deploy-message: "Deployed from GitHub Actions"
+          netlify-auth-token: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          netlify-site-id: ${{ secrets.NETLIFY_SITE_ID }}
+
+      # TRIGGER BACKEND DEPLOY (Render/Railway/Heroku)
+      - name: Deploy backend via deploy hook
+        if: ${{ success() }}
+        run: |
+          if [ -n "${{ secrets.BACKEND_DEPLOY_HOOK_URL }}" ]; then
+            curl -X POST "${{ secrets.BACKEND_DEPLOY_HOOK_URL }}"
+          else
+            echo "No backend deploy hook URL set, skipping backend deploy."
+          fi
